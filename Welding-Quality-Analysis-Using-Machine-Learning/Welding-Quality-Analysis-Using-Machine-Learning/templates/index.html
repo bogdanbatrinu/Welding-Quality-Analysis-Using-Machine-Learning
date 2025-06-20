@@ -1,0 +1,29 @@
+<!doctype html>
+<title>Welding Quality Predictor</title>
+<h1>Welding Quality Predictor</h1>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <ul class="flashes">
+    {% for category, message in messages %}
+      <li class="{{ category }}">{{ message }}</li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+
+<form method="post">
+  <label for="welding_speed">Welding Speed:</label>
+  <input type="number" step="any" name="welding_speed" value="{{ prev_welding_speed or '' }}" required><br>
+  <label for="material_property">Material Property:</label>
+  <input type="text" name="material_property" value="{{ prev_material_property or '' }}" required><br>
+  <label for="environment_factor">Environment Factor:</label>
+  <input type="number" step="any" name="environment_factor" value="{{ prev_environment_factor or '' }}" required><br>
+  <input type="submit" value="Predict">
+</form>
+
+{% if prediction_result is not none %}
+  <h2>Prediction: {{ prediction_result }}</h2>
+{% endif %}
+
+<p><a href="{{ url_for('retrain_model') }}">Retrain Model</a></p>

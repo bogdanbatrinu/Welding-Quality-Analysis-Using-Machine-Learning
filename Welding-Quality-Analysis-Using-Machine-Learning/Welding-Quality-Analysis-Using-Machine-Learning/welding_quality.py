@@ -7,6 +7,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, accuracy_score
 import matplotlib.pyplot as plt
 import seaborn as sns
+import joblib
+import json
+import os
+
+MODEL_FILE = 'welding_defect_model.joblib'
+PARAMS_FILE = 'preprocessing_parameters.json'
 
 def load_data(file_path):
     """
@@ -24,7 +30,7 @@ def load_data(file_path):
         print(f"Error loading data from '{file_path}': {e}")
         return None
 
-def preprocess_data(data):
+def preprocess_data(data, return_params=False):
     """
     Clean and preprocess the data.
     - Handle missing values
@@ -94,13 +100,20 @@ def preprocess_data(data):
     # Ensure these columns are indeed numeric before scaling
     final_numeric_features_to_scale = [col for col in numeric_cols_to_normalize if col in data.columns and pd.api.types.is_numeric_dtype(data[col])]
 
+    params = {}
     if not final_numeric_features_to_scale:
         print("Warning: No valid numeric features available for normalization after preprocessing.")
+        params['numeric_means'] = {}
+        params['numeric_stds'] = {}
     else:
+        means = data[final_numeric_features_to_scale].mean()
+        stds = data[final_numeric_features_to_scale].std().replace(0, 1)
+        params['numeric_means'] = means.to_dict()
+        params['numeric_stds'] = stds.to_dict()
         print(f"Normalizing numeric features: {final_numeric_features_to_scale}")
         data[final_numeric_features_to_scale] = (
-            data[final_numeric_features_to_scale] - data[final_numeric_features_to_scale].mean()
-        ) / data[final_numeric_features_to_scale].std()
+            data[final_numeric_features_to_scale] - means
+        ) / stds
         # Check for NaNs again after normalization (e.g. if std is zero)
         if data[final_numeric_features_to_scale].isnull().any().any():
             print("Warning: NaNs introduced during normalization (e.g., std deviation is zero for a feature). Check data.")
@@ -108,6 +121,10 @@ def preprocess_data(data):
             data = data.dropna(subset=final_numeric_features_to_scale)
             print(f"Data after dropping NaNs from normalization: {data.shape[0]} rows remaining.")
 
+    params['categories'] = [col[len('mat_prop_'):] for col in data.columns if col.startswith('mat_prop_')]
+
+    if return_params:
+        return data, params
 
     return data
 
@@ -117,9 +134,12 @@ def train_and_evaluate(data):
     Returns a tuple: (best_model, all_metrics_dict).
     all_metrics_dict contains accuracy and classification report for each model.
     """
-    if data.empty:
+    if data is None or data.empty:
         print("Data is empty, skipping model training and evaluation.")
         return None, {}
+
+    # Preprocess the data and capture parameters for future predictions
+    data, preprocess_params = preprocess_data(data, return_params=True)
 
     if 'defect' not in data.columns:
         print("Target column 'defect' not found in data. Skipping model training.")
@@ -204,10 +224,56 @@ def train_and_evaluate(data):
         # Get the class name of the best model for a more dynamic message
         best_model_name = type(best_model).__name__
         print(f"Selected best model: {best_model_name} (Accuracy: {best_accuracy:.4f})")
+        save_model_and_params(best_model, preprocess_params, X.columns.tolist())
     else:
         print("No model was successfully trained or selected.")
 
     return best_model, all_metrics
+
+def save_model_and_params(model, params, feature_columns):
+    """Save trained model and preprocessing parameters to disk."""
+    joblib.dump(model, MODEL_FILE)
+    params['feature_columns'] = feature_columns
+    with open(PARAMS_FILE, 'w') as f:
+        json.dump(params, f)
+    print(f"Model saved to {MODEL_FILE} and parameters to {PARAMS_FILE}")
+
+def load_model_and_params():
+    """Load model and preprocessing parameters from disk."""
+    if not os.path.exists(MODEL_FILE) or not os.path.exists(PARAMS_FILE):
+        raise FileNotFoundError("Model or parameter file missing")
+    model = joblib.load(MODEL_FILE)
+    with open(PARAMS_FILE) as f:
+        params = json.load(f)
+    return model, params
+
+def preprocess_new_input(df, params):
+    """Apply stored preprocessing steps to new input data."""
+    df = df.copy()
+    numeric_means = params.get('numeric_means', {})
+    numeric_stds = params.get('numeric_stds', {})
+    for col in numeric_means.keys():
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+        mean = numeric_means.get(col, 0)
+        std = numeric_stds.get(col, 1) or 1
+        df[col] = (df[col] - mean) / std
+    # One-hot encoding based on seen categories
+    for cat in params.get('categories', []):
+        colname = f'mat_prop_{cat}'
+        df[colname] = (df['material_property'] == cat).astype(int)
+    if 'material_property' in df.columns:
+        df.drop(columns=['material_property'], inplace=True)
+    for col in params.get('feature_columns', []):
+        if col not in df.columns:
+            df[col] = 0
+    return df[params.get('feature_columns', df.columns.tolist())]
+
+def predict_defects(df):
+    """Predict welding defects for the given dataframe of features."""
+    model, params = load_model_and_params()
+    processed = preprocess_new_input(df, params)
+    preds = model.predict(processed)
+    return ["Defective" if p == 1 else "Non-Defective" for p in preds]
 
 def visualize_data(data):
     """
@@ -253,45 +319,20 @@ def visualize_data(data):
         print("Skipping correlation heatmap: No numeric data available.")
 
 if __name__ == "__main__":
-    # File path to the welding dataset (replace with actual file path)
     file_path = 'welding_data.csv'
-
-    # Load data
     welding_data = load_data(file_path)
-
     if welding_data is not None:
-        # Preprocess data
-        welding_data = preprocess_data(welding_data)
-
-        if welding_data is not None and not welding_data.empty:
-            # Visualize data
-            # Note: visualize_data itself checks for empty data, but good practice to check here too.
-            visualize_data(welding_data.copy()) # Pass a copy to avoid modification by reference issues if any
-
-            # Train and evaluate models
-            # Note: train_and_evaluate also checks for empty data.
-            best_model, all_metrics = train_and_evaluate(welding_data.copy()) # Pass a copy
-
-            if best_model:
-                print(f"Best model ({type(best_model).__name__}) selected and ready for predictions.")
-            else:
-                print("No best model was selected. Check logs for details.")
-
-            print("\nDetailed metrics for all models:")
-            if all_metrics:
-                for model_name, metrics in all_metrics.items():
-                    print(f"--- {model_name} ---")
-                    print(f"  Accuracy: {metrics.get('accuracy', 'N/A'):.4f}")
-                    print(f"  Classification Report:\n{metrics.get('classification_report', 'N/A')}")
-            else:
-                print("No metrics were generated.")
-
-        elif welding_data is not None and welding_data.empty:
-            print("Preprocessing resulted in empty data. Skipping visualization and model training.")
-        else: # This case implies preprocess_data itself returned None (should not happen with current code)
-            print("Preprocessing failed or returned None. Skipping visualization and model training.")
-
+        visualize_data(welding_data.copy())
+        best_model, all_metrics = train_and_evaluate(welding_data.copy())
+        if best_model:
+            print(f"Best model ({type(best_model).__name__}) trained and saved.")
+        else:
+            print("Model training failed.")
+        print("\nDetailed metrics for all models:")
+        for model_name, metrics in all_metrics.items():
+            print(f"--- {model_name} ---")
+            print(f"  Accuracy: {metrics.get('accuracy', 'N/A'):.4f}")
+            print(f"  Classification Report:\n{metrics.get('classification_report', 'N/A')}")
     else:
         print("Data loading failed. Please check the file path and data integrity.")
-
     print("\nScript execution finished.")
