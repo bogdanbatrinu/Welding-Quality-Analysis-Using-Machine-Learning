@@ -1,0 +1,15 @@
+welding_speed,material_property,environment_factor,defect
+1.5,A,25.0,Non-Defective
+2.0,B,30.0,Defective
+1.2,A,22.0,Non-Defective
+2.5,C,28.0,Defective
+1.8,,26.0,Non-Defective
+2.2,B,35.0,Defective
+1.0,A,20.0,Non-Defective
+NaN,C,32.0,Defective
+1.7,B,29.0,Non-Defective
+2.3,A,27.0,Defective
+1.4,C,23.0,Non-Defective
+2.1,B,31.0,Defective
+1.9,A,33.0,
+1.6,C,24.0,Non-Defective
