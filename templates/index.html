@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welding Defect Prediction</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        input[type="text"], input[type="number"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            margin-top: 20px;
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        input[type="submit"]:hover { background-color: #0056b3; }
+        .flashes { list-style: none; padding: 0; }
+        .flashes li {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .flashes .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .flashes .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .flashes .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .flashes .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .prediction-result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #e9ecef;
+        }
+        .retrain-link { margin-top: 30px; display: block; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welding Defect Prediction</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <ul class="flashes">
+            {% for category, message in messages %}
+              <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('index') }}">
+            <div>
+                <label for="welding_speed">Welding Speed:</label>
+                <input type="number" step="0.01" id="welding_speed" name="welding_speed" value="{{ prev_welding_speed if prev_welding_speed is not none }}" required>
+            </div>
+            <div>
+                <label for="material_property">Material Property (e.g., A, B, C):</label>
+                <input type="text" id="material_property" name="material_property" value="{{ prev_material_property if prev_material_property is not none }}" required>
+            </div>
+            <div>
+                <label for="environment_factor">Environment Factor:</label>
+                <input type="number" step="0.01" id="environment_factor" name="environment_factor" value="{{ prev_environment_factor if prev_environment_factor is not none }}" required>
+            </div>
+            <div>
+                <input type="submit" value="Predict Defect">
+            </div>
+        </form>
+
+        {% if prediction_result %}
+        <div class="prediction-result">
+            <h2>Prediction Result:</h2>
+            <p><strong>{{ prediction_result }}</strong></p>
+        </div>
+        {% endif %}
+
+        <div class="retrain-link">
+            <p>If model files are missing or you want to retrain with updated data:</p>
+            <a href="{{ url_for('retrain_model') }}">Retrain Model</a>
+            <p><small>(This uses 'welding_data.csv' in the backend)</small></p>
+        </div>
+    </div>
+</body>
+</html>

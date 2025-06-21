@@ -1,0 +1,18 @@
+{
+    "means": {
+        "welding_speed": 1.7750000000000001,
+        "environment_factor": 26.666666666666668
+    },
+    "stds": {
+        "welding_speed": 0.45949577107560374,
+        "environment_factor": 4.228331571528879
+    },
+    "columns": [
+        "welding_speed",
+        "environment_factor",
+        "material_property_A",
+        "material_property_B",
+        "material_property_C",
+        "material_property_nan"
+    ]
+}
